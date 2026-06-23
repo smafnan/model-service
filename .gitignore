@@ -14,3 +14,7 @@ Thumbs.db
 
 # Trained artifact (rebuilt at startup / image build via `python -m app.model`)
 artifacts/
+
+# Frontend deps (web/dist IS committed so the service serves the UI from a clone)
+web/node_modules/
+web/.vite/

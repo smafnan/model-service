@@ -11,9 +11,10 @@ WORKDIR /service
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application and data.
+# Copy the application, data, and the prebuilt web UI.
 COPY app ./app
 COPY data ./data
+COPY web/dist ./web/dist
 
 # Bake the trained model into the image so startup is instant and offline.
 RUN python -m app.model

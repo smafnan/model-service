@@ -44,8 +44,8 @@ def test_health(client):
     assert set(body["classes"]) == {"positive", "negative", "neutral"}
 
 
-def test_root(client):
-    r = client.get("/")
+def test_info(client):
+    r = client.get("/info")
     assert r.status_code == 200
     assert r.json()["service"] == "sentiment-model"
 

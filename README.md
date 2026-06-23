@@ -31,9 +31,21 @@ uvicorn app.main:app --reload                        # http://localhost:8000
 
 The model is trained automatically on first start if no artifact exists.
 
+## 🖥️ Web playground (React + Tailwind)
+
+A live **Sentiment Playground** ships with the service and is served at the root
+URL: type anything and it classifies in real time (debounced) into positive /
+neutral / negative with animated probability bars and a model-health badge.
+
+- Run the service (Docker or `uvicorn app.main:app`) and open **http://localhost:8000**.
+- The prebuilt `web/dist` is committed (and baked into the Docker image), so the
+  UI works straight from a clone — no Node build needed just to run it.
+- Rebuild/develop the frontend: `cd web && npm install && npm run build`.
+
 ## Use it
 
-Interactive API docs (Swagger UI) are at **http://localhost:8000/docs**.
+Interactive API docs (Swagger UI) are at **http://localhost:8000/docs**, and the
+JSON service info moved to **/info** (the root now serves the playground).
 
 ```bash
 # Health check

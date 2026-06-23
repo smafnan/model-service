@@ -72,7 +72,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-@app.get("/", summary="Service info")
+@app.get("/info", summary="Service info")
 def root():
     return {"service": "sentiment-model", "version": app.version,
             "docs": "/docs", "health": "/health"}
@@ -102,3 +102,12 @@ def predict_batch(req: BatchPredictRequest):
     return BatchPredictResponse(predictions=[
         PredictResponse(label=p.label, score=p.score, scores=p.scores) for p in preds
     ])
+
+
+# Serve the built React playground at / (after the API routes above).
+from pathlib import Path  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_dist = Path(__file__).resolve().parent.parent / "web" / "dist"
+if _dist.exists():
+    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="web")
