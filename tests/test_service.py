@@ -82,3 +82,8 @@ def test_missing_field_rejected(client):
 def test_batch_too_large_rejected(client):
     r = client.post("/predict/batch", json={"texts": ["x"] * 101})
     assert r.status_code == 422        # max_length=100
+
+
+def test_batch_empty_item_rejected(client):
+    r = client.post("/predict/batch", json={"texts": ["love it", ""]})
+    assert r.status_code == 422        # each item must match PredictRequest.text's min_length=1

@@ -7,16 +7,21 @@ edge.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints
+
+# Same per-text constraints as PredictRequest.text, reused so batch items can't
+# smuggle in an empty string that the single-predict endpoint would reject.
+NonEmptyText = Annotated[str, StringConstraints(min_length=1, max_length=5000)]
 
 
 class PredictRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=5000,
-                      description="The text to classify.")
+    text: NonEmptyText = Field(description="The text to classify.")
 
 
 class BatchPredictRequest(BaseModel):
-    texts: list[str] = Field(min_length=1, max_length=100,
+    texts: list[NonEmptyText] = Field(min_length=1, max_length=100,
                              description="Up to 100 texts to classify.")
 
 
