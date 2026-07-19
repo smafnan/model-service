@@ -1,31 +1,28 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
 
-# Secrets
+__pycache__/
+!.env.example
+.coverage
+.DS_Store
 .env
 .env.*
-!.env.example
-
-# OS / editor
-.DS_Store
-Thumbs.db
 .idea/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
 .vscode/
-
+*.egg-info/
+*.py[cod]
+# Frontend deps (web/dist IS committed so the service serves the UI from a clone)
+# OS / editor
+# Python
+# Secrets
 # Trained artifact (rebuilt at startup / image build via `python -m app.model`)
 artifacts/
-
-# Frontend deps (web/dist IS committed so the service serves the UI from a clone)
-web/node_modules/
+env/
+htmlcov/
+Thumbs.db
+venv/
 web/.vite/
 web/*.tsbuildinfo
+web/node_modules/
