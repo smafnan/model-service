@@ -17,6 +17,10 @@ A TF-IDF + logistic-regression sentiment classifier served over HTTP with FastAP
   CSV (`data/sentiment.csv`) to classify text as `positive` / `neutral` / `negative`.
 - Serves the model over **FastAPI** with request logging, Pydantic input
   validation, and a `/health` probe.
+- Hardened for exposure beyond a laptop demo: a **CORS allowlist**, **optional
+  API-key auth**, and **per-client rate limiting** on `/predict*` — all
+  configurable via env vars, all off/permissive by default so local dev needs
+  no setup.
 - Bakes the trained model into the **Docker** image at build time, so the
   container starts instantly with zero manual setup.
 - Ships a prebuilt **React + Tailwind** playground (`web/dist`, committed) that
@@ -37,8 +41,9 @@ flowchart LR
         Lifespan --> AppState["in-memory model\n(app/main.py: state)"]
 
         Client["HTTP client / browser"] -->|"GET /, /docs"| Static["StaticFiles\nweb/dist (React UI)"]
-        Client -->|"GET /health, /info\nPOST /predict, /predict/batch"| MW["Logging middleware\n(request id, latency)"]
-        MW --> Routes["FastAPI routes"]
+        Client -->|"GET /health, /info\nPOST /predict, /predict/batch"| MW["CORS + logging middleware\n(request id, latency)"]
+        MW --> Guard["API-key auth + rate limit\n(dependencies, /predict* only)"]
+        Guard --> Routes["FastAPI routes"]
         Routes --> AppState
         AppState -->|"Prediction"| Routes
         Routes --> Client
@@ -105,9 +110,34 @@ curl -X POST http://localhost:8000/predict/batch \
 | GET    | `/`              | web playground (React UI, served from `web/dist`)      |
 | GET    | `/info`          | JSON service info (name, version, doc links)           |
 | GET    | `/health`        | liveness/readiness probe (used by Docker `HEALTHCHECK`) |
-| POST   | `/predict`       | classify one text                                      |
-| POST   | `/predict/batch` | classify up to 100 texts                               |
+| POST   | `/predict`       | classify one text (auth + rate limit apply)            |
+| POST   | `/predict/batch` | classify up to 100 texts (auth + rate limit apply)      |
 | GET    | `/docs`          | interactive Swagger UI                                 |
+
+### Configuration (env vars)
+
+All optional — the service is a fully working local demo with none of them set.
+
+| Variable               | Default                                          | Effect                                                                 |
+| ----------------------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| `ALLOWED_ORIGINS`       | `http://localhost:5173,http://localhost:8000`     | Comma-separated CORS allowlist for browser clients.                    |
+| `API_KEY`               | unset (auth disabled)                             | When set, `/predict` and `/predict/batch` require a matching `X-API-Key` header, or a `401`. |
+| `RATE_LIMIT_PER_MINUTE` | `120`                                              | Per-client (by IP) requests allowed to `/predict*` per rolling minute before a `429`. |
+
+```bash
+# Example: a hardened run with auth + a tighter rate limit
+API_KEY=s3cret RATE_LIMIT_PER_MINUTE=30 \
+ALLOWED_ORIGINS=https://myapp.example.com \
+uvicorn app.main:app
+
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" -H "X-API-Key: s3cret" \
+  -d '{"text":"great service"}'
+```
+
+The rate limiter is a simple in-memory fixed window per client IP — fine for a
+single-process deployment, not shared across multiple workers/instances (see
+Limitations).
 
 ### Web playground
 
@@ -124,7 +154,8 @@ curl -X POST http://localhost:8000/predict/batch \
 
 ```bash
 pip install -r requirements.txt
-pytest -q   # 10 tests via FastAPI TestClient: endpoints, validation, the model
+pytest -q   # 14 tests via FastAPI TestClient: endpoints, validation, the model,
+            # API-key auth, rate limiting
 ```
 
 ## Project structure
@@ -138,7 +169,7 @@ app/
 data/
 └── sentiment.csv       # bundled 30-row training set (10 pos / 10 neg / 10 neutral)
 tests/
-└── test_service.py     # 10 TestClient + model unit tests
+└── test_service.py     # 14 TestClient + model unit tests
 web/
 ├── src/App.tsx         # the playground UI (React + Tailwind + Framer Motion)
 ├── src/main.tsx         # React entry point
@@ -175,14 +206,13 @@ requirements.txt         # Python runtime + test dependencies
   `tests/test_service.py`. This project is intentionally scoped around
   *serving and ops*, not model quality (see the training data itself for how
   clean/on-the-nose the examples are).
-- **Batch endpoint predicts one text at a time in a Python loop**
-  (`app/main.py:predict_batch`) rather than passing the whole list through
-  `pipeline.predict_proba(texts)` in one call. Fine at the current 100-item
-  cap, but not the most efficient approach.
-- **No authentication or rate limiting.** Every endpoint is open; acceptable
-  for a local/demo service, not for public exposure as-is.
-- **No CI.** Tests exist (`pytest -q`) but nothing runs them automatically on
-  push/PR.
+- **Rate limiting is in-memory and per-process.** `RateLimiter` in
+  `app/main.py` keeps hit counts in a plain dict, so limits reset on restart
+  and aren't shared across multiple workers/instances — fine for a
+  single-process demo/small deployment, not a horizontally-scaled one (would
+  need a shared store like Redis).
+- **API-key auth is a single shared secret**, not per-user keys or scopes —
+  adequate for gating a demo, not a multi-tenant access-control story.
 - **Dependency versions are open-ended lower bounds** (`fastapi>=0.110`, etc.)
   rather than an exact-pinned lockfile, so a future breaking release upstream
   could change behavior without notice.
@@ -192,10 +222,9 @@ requirements.txt         # Python runtime + test dependencies
 
 ## Roadmap
 
-- Add a GitHub Actions workflow to run `pytest` on every push/PR.
-- Vectorize `/predict/batch` into a single `pipeline.predict_proba(texts)` call.
 - Expand the training set and report a real held-out accuracy/F1 in this README.
-- Add basic API-key auth and rate limiting before any public deployment.
+- Back the rate limiter with a shared store (e.g. Redis) for multi-worker/
+  multi-instance deployments.
 - Pin dependencies via a lockfile (e.g. `pip-tools` or `uv`) for reproducible builds.
 
 ## License

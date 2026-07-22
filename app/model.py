@@ -73,10 +73,17 @@ class SentimentModel:
         return cls(model)
 
     def predict(self, text: str) -> Prediction:
-        proba = self.pipeline.predict_proba([text])[0]
-        scores = {c: float(p) for c, p in zip(self.classes, proba)}
-        label = max(scores, key=scores.get)
-        return Prediction(label=label, score=scores[label], scores=scores)
+        return self.predict_batch([text])[0]
+
+    def predict_batch(self, texts: list[str]) -> list[Prediction]:
+        """Classify many texts with a single vectorized model call."""
+        probas = self.pipeline.predict_proba(texts)
+        predictions = []
+        for proba in probas:
+            scores = {c: float(p) for c, p in zip(self.classes, proba)}
+            label = max(scores, key=scores.get)
+            predictions.append(Prediction(label=label, score=scores[label], scores=scores))
+        return predictions
 
 
 if __name__ == "__main__":  # `python -m app.model` trains and saves the artifact

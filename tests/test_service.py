@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app import main as app_main
 from app.main import app
 from app.model import SentimentModel
 
@@ -87,3 +88,45 @@ def test_batch_too_large_rejected(client):
 def test_batch_empty_item_rejected(client):
     r = client.post("/predict/batch", json={"texts": ["love it", ""]})
     assert r.status_code == 422        # each item must match PredictRequest.text's min_length=1
+
+
+# --- optional API-key auth -------------------------------------------------- #
+
+def test_predict_open_when_api_key_unset(client):
+    assert app_main.API_KEY is None    # default: no env set, demo stays open
+    r = client.post("/predict", json={"text": "love it"})
+    assert r.status_code == 200
+
+
+def test_predict_rejected_without_matching_api_key(client, monkeypatch):
+    monkeypatch.setattr(app_main, "API_KEY", "s3cret")
+
+    r = client.post("/predict", json={"text": "love it"})
+    assert r.status_code == 401        # no header
+
+    r = client.post("/predict", json={"text": "love it"},
+                    headers={"X-API-Key": "wrong"})
+    assert r.status_code == 401        # wrong header
+
+
+def test_predict_accepted_with_matching_api_key(client, monkeypatch):
+    monkeypatch.setattr(app_main, "API_KEY", "s3cret")
+
+    r = client.post("/predict", json={"text": "love it"},
+                    headers={"X-API-Key": "s3cret"})
+    assert r.status_code == 200
+
+
+# --- rate limiting ----------------------------------------------------------- #
+
+def test_rate_limit_triggers_429(client, monkeypatch):
+    monkeypatch.setattr(app_main.rate_limiter, "limit", 2)
+    app_main.rate_limiter.reset()      # drop hits recorded by earlier tests
+    try:
+        for _ in range(2):
+            r = client.post("/predict", json={"text": "love it"})
+            assert r.status_code == 200
+        r = client.post("/predict", json={"text": "love it"})
+        assert r.status_code == 429
+    finally:
+        app_main.rate_limiter.reset()  # don't leak into later tests
